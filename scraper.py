@@ -35,8 +35,9 @@ def find_first_number(text):
 # Extracts the product information from the HTML content on each page
 def extract_product_info(product_url, category, browser):
 
-    # Wait for 5 seconds to prevent overloading the server
-    time.sleep(5)
+    # Wait for 10 seconds to prevent overloading the server
+    # This is the value set in the robots.txt file
+    time.sleep(10)
 
     data = {}
 
