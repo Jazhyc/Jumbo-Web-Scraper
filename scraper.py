@@ -1,6 +1,5 @@
 import pandas as pd
 import requests
-from requests_html import HTMLSession
 from bs4 import BeautifulSoup
 import numpy as np
 import time
@@ -30,9 +29,7 @@ def extract_product_info(product_url, category):
     data = {}
 
     try:
-        s = HTMLSession()
-        response = s.get(product_url, headers=AGENT, timeout=15)
-        html = response.html.render().text
+        html = requests.get(product_url, headers=AGENT, timeout=None).text
     except requests.exceptions.ReadTimeout:
         print("Time out for product, skipping...")
         return
@@ -85,9 +82,7 @@ def parse_category(dataframe, base_url, category):
         # Request the html content of the page and parse it
         # Retry if the request times out
         try:
-            s = HTMLSession()
-            response = s.get(f"{base_url}/producten/{category}?offset={offset}", headers=AGENT, timeout=15)
-            html = response.html.render().text
+            html = requests.get(f"{base_url}/producten/{category}?offset={offset}", headers=AGENT, timeout=None).text
         except requests.exceptions.ReadTimeout:
             print("Time out for page, retrying...")
             continue
