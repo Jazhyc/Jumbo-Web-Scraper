@@ -1,12 +1,20 @@
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from selenium.webdriver import Chrome
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.by import By
 import numpy as np
 import time
 import re
 
 # Get the categories of food items and the nutrients we want to extract
 from constants import *
+
+chrome_options = Options()
+#chrome_options.add_argument("--headless")
 
 # Finds the first number in a string
 def find_first_number(text):
@@ -21,15 +29,16 @@ def find_first_number(text):
 
 
 # Extracts the product information from the HTML content on each page
-def extract_product_info(product_url, category):
+def extract_product_info(product_url, category, browser):
 
     # Wait for 1 second to prevent overloading the server
-    time.sleep(1)
+    # time.sleep(1)
 
     data = {}
 
     try:
-        html = requests.get(product_url, headers=AGENT, timeout=None).text
+        browser.get(product_url)
+        html = browser.page_source
     except requests.exceptions.ReadTimeout:
         print("Time out for product, skipping...")
         return
@@ -65,12 +74,18 @@ def extract_product_info(product_url, category):
     return data
 
 # Gets all the products from a category
-def parse_category(dataframe, base_url, category):
+def parse_category(dataframe, base_url, category, browser):
 
     print(f"Began category {category}")
 
     # Represents the number of products to skip
     offset = 0
+
+    # Go to the first page of the category
+    browser.get(f"{base_url}/producten/{category}?&offset={offset}")
+
+    # Create a secondary browser to get the product information
+    subBrowser = Chrome(options=chrome_options)
 
     # Create temp variable for stopping loop by checking if duplication occurs
     temp = None
@@ -82,7 +97,9 @@ def parse_category(dataframe, base_url, category):
         # Request the html content of the page and parse it
         # Retry if the request times out
         try:
-            html = requests.get(f"{base_url}/producten/{category}?offset={offset}", headers=AGENT, timeout=None).text
+            WebDriverWait(browser, 10).until(lambda x: x.find_element_by_class_name('page'))
+            time.sleep(3)
+            html = browser.page_source
         except requests.exceptions.ReadTimeout:
             print("Time out for page, retrying...")
             continue
@@ -97,13 +114,16 @@ def parse_category(dataframe, base_url, category):
             print(f"Finished category {category}")
             return
             
-
         # Loop through all the products
         for product in products:
             product_addend = product.find('a').get('href')
             product_url = base_url + product_addend
             
-            info = extract_product_info(product_url, category)
+            try:
+                info = extract_product_info(product_url, category, subBrowser)
+            except:
+                print("Error extracting product info, skipping...")
+                continue
 
             if info:
                 dataframe.append(info)
@@ -112,6 +132,15 @@ def parse_category(dataframe, base_url, category):
         
         # There are 24 products per page
         offset += 24
+
+        try:
+            element = browser.find_element_by_name("next").click()
+        except:
+            print(f"Finished category {category}")
+            subBrowser.quit()
+            return
+    
+    subBrowser.quit()
     
 
 def main():
@@ -120,14 +149,31 @@ def main():
     url = 'https://www.jumbo.com'
     nutritional_information = []
 
+    browser = Chrome(options=chrome_options)
+    browser.get(f"{url}")
+    time.sleep(1)
+    browser.find_element_by_id('onetrust-accept-btn-handler').click()
+    time.sleep(1)
+
+    try:
+        # Get rid of the emergency popup
+        element = browser.find_element_by_css_selector(".jum-button.close.tertiary.icon")
+        print('Element', element)
+        element.click()
+        time.sleep(1)
+    except:
+        print('No emergency popup')
+
     # Loop through all the categories
     for category in CATEGORIES:
-        parse_category(nutritional_information, url, category)
+        parse_category(nutritional_information, url, category, browser)
 
     # Create a dataframe from the nutritional information
     df = pd.DataFrame(nutritional_information)
 
     df.to_csv('groceries.csv', index=False)
+
+    browser.quit()
 
 
 if __name__ == '__main__':
