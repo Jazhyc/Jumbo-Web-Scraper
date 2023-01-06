@@ -10,20 +10,23 @@ import numpy as np
 import time
 import re
 
-# Get the categories of food items and the nutrients we want to extract
+# Get the categories of food items from the website
 from constants import *
 
 # Set up the browser to parse the website
-#user_agent = 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.2 (KHTML, like Gecko) Chrome/22.0.1216.0 Safari/537.2'
+# user_agent = 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.2 (KHTML, like Gecko) Chrome/22.0.1216.0 Safari/537.2'
 chrome_options = Options()
+
+#* Headless mode does not work with the website
 # chrome_options.add_argument("--headless")
 #chrome_options.add_argument(f'user-agent={user_agent}')
 # chrome_options.add_argument("--window-size=1920,1080")
 
 # Finds the first number in a string
 def find_first_number(text):
-  # Find the first occurrence of a number in the text
+  
   match = re.search(r'\b\d+(?:\.\d+)?\b', text)
+
   if match:
     # Return the number if found
     return float(match.group())
@@ -54,7 +57,7 @@ def extract_product_info(product_url, category, browser):
     name = soup.find('h1').text
     price = soup.find(attrs={'class': 'current-price'}).text
     
-    # Print the name for logging progress
+    # Print the name and price for logging progress
     print(name, ".".join(price.split()))
     data['Name'] = name
     data['Price'] = ".".join(price.split())
@@ -68,8 +71,10 @@ def extract_product_info(product_url, category, browser):
 
         if (len(details) < 2):
             continue
-
-        nutrient = details[0].text
+        
+        # Make lower case and remove special characters
+        nutrient = details[0].text.lower()
+        nutrient = re.sub(r'[^\w]', ' ', nutrient)
 
         if not nutrient:
             nutrient = 'Joules'
@@ -112,19 +117,6 @@ def parse_category(dataframe, base_url, category, browser, subBrowser):
 
         # Get href of all the products
         products = soup.find_all(attrs={"analytics-tag" : "product card"})
-
-        #? It may be better to handle duplicates in the end
-        # # Stop if the product page starts looping
-        # if (temp == products):
-
-        #     try:
-        #         element = browser.find_element_by_name("next").click()
-        #     except:
-        #         print(f"Finished category {category}")
-        #         subBrowser.quit()
-        #         return
-
-        #     continue
             
         # Loop through all the products
         for product in products:
@@ -136,7 +128,8 @@ def parse_category(dataframe, base_url, category, browser, subBrowser):
             except:
                 print("Error extracting product info, skipping...")
                 continue
-
+            
+            # If we failed to get the product info, skip it
             if info:
                 dataframe.append(info)
         
@@ -145,6 +138,7 @@ def parse_category(dataframe, base_url, category, browser, subBrowser):
         # There are 24 products per page
         offset += 24
 
+        # Go to the next page. If there is no next page, break the loop
         try:
             element = browser.find_element_by_name("next").click()
         except:
@@ -183,7 +177,7 @@ def main():
     # Create a dataframe from the nutritional information
     df = pd.DataFrame(nutritional_information)
 
-    df.to_csv('groceries.csv', index=False)
+    df.to_csv('dataset/groceries.csv', index=False)
 
     browser.quit()
     subBrowser.quit()
