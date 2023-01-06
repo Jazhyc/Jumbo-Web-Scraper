@@ -74,7 +74,7 @@ def extract_product_info(product_url, category, browser):
         
         # Make lower case and remove special characters
         nutrient = details[0].text.lower()
-        nutrient = re.sub(r'[^\w]', ' ', nutrient)
+        nutrient = re.sub(r'[^\w]', ' ', nutrient).strip()
 
         if not nutrient:
             nutrient = 'Joules'
